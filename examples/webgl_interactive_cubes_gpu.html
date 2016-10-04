@@ -48,6 +48,7 @@ var highlightBox;
 var canvas, gl;
 var pbo;
 var pixelBuffer = new Uint8Array(4);
+var asyncID;
 
 var mouse = new THREE.Vector2();
 var offset = new THREE.Vector3(10, 10, 10);
@@ -56,7 +57,7 @@ var frameRequested = false;
 window.pick = pick_readPixels;
 
 init();
-request();
+request(render);
 
 function init() {
 
@@ -188,19 +189,21 @@ function onMouseMove(e) {
   mouse.x = e.clientX;
   mouse.y = e.clientY;
 
-  request();
-}
-
-function request() {
-  if (!frameRequested) {
-    frameRequested = true;
-    requestAnimationFrame(animate);
+  if (pick === pick_getBufferSubDataAsync) {
+    pick();
+  } else {
+    request(render);
   }
 }
 
-function animate() {
-  frameRequested = false;
-  render();
+function request(f) {
+  if (!frameRequested) {
+    frameRequested = true;
+    requestAnimationFrame(function() {
+      frameRequested = false;
+      f();
+    });
+  }
 }
 
 function pick_readPixels() {
@@ -264,23 +267,31 @@ function pick_getBufferSubDataAsync() {
   var promise = gl.getBufferSubDataAsync(gl.PIXEL_PACK_BUFFER, 0, pixelBuffer);
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
 
+  stats.begin();
   promise.then(function(pixelBuffer) {
+    stats.end();
     // interpret the pixel as an ID
-    var id = (pixelBuffer[0] << 16) | (pixelBuffer[1] << 8) | (pixelBuffer[2]);
-    var data = pickingData[id];
-
-    if (data) {
-      // move our highlightBox so that it surrounds the picked object
-      if (data.position && data.rotation && data.scale) {
-        highlightBox.position.copy(data.position);
-        highlightBox.rotation.copy(data.rotation);
-        highlightBox.scale.copy(data.scale).add(offset);
-        highlightBox.visible = true;
-      }
-    } else {
-      highlightBox.visible = false;
-    }
+    asyncID = (pixelBuffer[0] << 16) | (pixelBuffer[1] << 8) | (pixelBuffer[2]);
+    request(renderAsync);
   });
+}
+
+function renderAsync() {
+  var data = pickingData[asyncID];
+
+  if (data) {
+    // move our highlightBox so that it surrounds the picked object
+    if (data.position && data.rotation && data.scale) {
+      highlightBox.position.copy(data.position);
+      highlightBox.rotation.copy(data.rotation);
+      highlightBox.scale.copy(data.scale).add(offset);
+      highlightBox.visible = true;
+    }
+  } else {
+    highlightBox.visible = false;
+  }
+  controls.update();
+  renderer.render(scene, camera);
 }
 
 function render() {
