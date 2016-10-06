@@ -1,6 +1,6 @@
 # [getBufferSubDataAsync Picking Demo](https://kainino0x.github.io/getBufferSubDataAsync-Demo/)
 
-This demo demonstrates the use of the proposed `getBufferSubDataAsync` method
+This demonstrates the use of the proposed `getBufferSubDataAsync` method
 in WebGL 2 and provides a performance comparison against synchronous picking
 methods.
 
