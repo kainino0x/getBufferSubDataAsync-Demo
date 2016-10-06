@@ -11,6 +11,8 @@ It is based on the Three.js demo
 
 ## Performance
 
+On Chrome 55.0.2880.0 + [patch](https://codereview.chromium.org/2379203002/), Ubuntu 14.04, NVIDIA Quadro K620, 367.35.
+
 | Timing results                    | readPixels (sync) | readPixels (async) + getBufferSubData (sync) | readPixels (async) + getBufferSubDataAsync |
 |:--------------------------------- | -----------------:| --------------------------------------------:| ------------------------------------------:|
 | time in synchronous picking code  |          27-31 ms |                                     27-31 ms |                                     0-1 ms |
