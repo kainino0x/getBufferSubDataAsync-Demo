@@ -26,14 +26,27 @@
     color: #00ffff;
   }
 
-  #statsinfo {
+  #statsinfo1 {
     position: absolute;
-    background-color: #111;
+    background-color: #000;
     font-size: 90%;
-    opacity: 0.9;
+    opacity: 0.8;
     color: white;
-    top: 48px;
-    width: 80px;
+    height: 48px;
+    left: 80px;
+    width: 150px;
+  }
+
+  #statsinfo2 {
+    position: absolute;
+    background-color: #000;
+    font-size: 90%;
+    opacity: 0.8;
+    color: white;
+    height: 48px;
+    left: 80px;
+    width: 150px;
+    top: 50px;
   }
 </style>
 </head>
@@ -43,8 +56,11 @@
   webgl 2 - asynchronous gpu picking with getBufferSubDataAsync (using
   <a href="http://threejs.org" target="_blank">three.js</a>)
 </div>
-<div id="statsinfo">
-  this meter measures the time spent in <em>synchronous</em> picking and rendering code
+<div id="statsinfo1">
+  time spent in <em>synchronous</em> picking and rendering code
+</div>
+<div id="statsinfo2">
+  time between triggering pick and completing render
 </div>
 <div id="container"></div>
 
@@ -53,7 +69,7 @@
 <script src="js/libs/stats.min.js"></script>
 <script src="js/libs/dat.gui.min.js"></script>
 <script>
-var container, stats;
+var container, stats1, stats2;
 var camera, controls, scene, renderer;
 var pickingData = [], pickingTexture, pickingScene;
 var objects = [];
@@ -70,7 +86,7 @@ var frameRequested = false;
 var pickAndRender = pick_getBufferSubDataAsync;
 
 init();
-requestRender();
+requestAnimationFrame(render);
 
 function init() {
 
@@ -179,9 +195,14 @@ function init() {
   gl.bufferData(gl.PIXEL_PACK_BUFFER, 4, gl.DYNAMIC_READ);
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
 
-  stats = new Stats();
-  stats.showPanel(1);
-  container.appendChild(stats.dom);
+  stats1 = new Stats();
+  stats1.showPanel(1);
+  container.appendChild(stats1.dom);
+
+  stats2 = new Stats();
+  stats2.showPanel(1);
+  container.appendChild(stats2.dom);
+  stats2.domElement.style.top = "50px";
 
   var gui = new dat.GUI({ resizable: false, width: 350 });
   var pickObject = { pickImplementation: 'pick_getBufferSubDataAsync' };
@@ -206,51 +227,66 @@ function onMouseMove(e) {
 }
 
 function requestPickAndRender() {
-  if (pickAndRender === pick_getBufferSubDataAsync) {
-    if (frameRequested) {
-      return;
-    }
-    frameRequested = true;
+  if (frameRequested) {
+    return;
   }
-
-  stats.begin();
-  // render the picking scene off-screen
-  renderer.render(pickingScene, camera, pickingTexture);
-  // read the pixel under the mouse from the texture
-  pickAndRender(requestRender);
-  stats.end();
+  frameRequested = true;
+  pickAndRender();
 }
 
-function requestRender(highlightID) {
+function pick_readPixels() {
   requestAnimationFrame(function() {
-    frameRequested = false;
-    render(highlightID);
+    stats1.begin()
+    // render the picking scene off-screen
+    renderer.render(pickingScene, camera, pickingTexture);
+    // read the pixel under the mouse
+    stats2.begin();
+    gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, readbackBuffer);
+    stats1.end();
+
+    var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
+    render(id);
+    stats2.end();
   });
 }
 
-function pick_readPixels(callback) {
-  gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, readbackBuffer);
+function pick_getBufferSubData() {
+  requestAnimationFrame(function() {
+    stats1.begin()
+    // render the picking scene off-screen
+    renderer.render(pickingScene, camera, pickingTexture);
+    // read the pixel under the mouse
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+    stats2.begin();
+    gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, readbackBuffer);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    stats1.end();
 
-  callback((readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]));
+    var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
+    render(id);
+    stats2.end();
+  });
 }
 
-function pick_getBufferSubData(callback) {
+function pick_getBufferSubDataAsync() {
+  stats1.begin();
+  // render the picking scene off-screen
+  renderer.render(pickingScene, camera, pickingTexture);
+  // read the pixel under the mouse
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
-  gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
-  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, readbackBuffer);
-  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
-
-  callback((readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]));
-}
-
-function pick_getBufferSubDataAsync(callback) {
-  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+  stats2.begin();
   gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
   var promise = gl.getBufferSubDataAsync(gl.PIXEL_PACK_BUFFER, 0, readbackBuffer);
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+  stats1.end();
 
   return promise.then(function(readbackBuffer) {
-    callback((readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]));
+    var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
+    requestAnimationFrame(function() {
+      render(id);
+      stats2.end();
+    });
   });
 }
 
@@ -270,6 +306,7 @@ function highlight(id) {
 }
 
 function render(highlightID) {
+  frameRequested = false;
   highlight(highlightID);
   controls.update();
   renderer.render(scene, camera);
