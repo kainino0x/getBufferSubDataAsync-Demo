@@ -283,10 +283,8 @@ function pick_getBufferSubDataAsync() {
 
   return promise.then(function(readbackBuffer) {
     var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
-    requestAnimationFrame(function() {
-      render(id);
-      stats2.end();
-    });
+    render(id);
+    stats2.end();
   });
 }
 
