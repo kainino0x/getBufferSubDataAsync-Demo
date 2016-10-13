@@ -246,6 +246,7 @@ function pick_readPixels() {
 
     var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
     render(id);
+    gl.finish();
     stats2.end();
   });
 }
@@ -265,6 +266,7 @@ function pick_getBufferSubData() {
 
     var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
     render(id);
+    gl.finish();
     stats2.end();
   });
 }
@@ -284,6 +286,7 @@ function pick_getBufferSubDataAsync() {
   return promise.then(function(readbackBuffer) {
     var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
     render(id);
+    gl.finish();
     stats2.end();
   });
 }
