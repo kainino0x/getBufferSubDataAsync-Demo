@@ -75,7 +75,7 @@ var pickingData = [], pickingTexture, pickingScene;
 var objects = [];
 var highlightBox;
 
-var canvas, gl;
+var canvas, gl, WEBGL_get_buffer_sub_data_async;
 var pbo;
 var readbackBuffer = new Uint8Array(4);
 
@@ -83,7 +83,7 @@ var mouse = new THREE.Vector2();
 var offset = new THREE.Vector3(10, 10, 10);
 var frameRequested = false;
 
-var pickAndRender = pick_getBufferSubDataAsync;
+var pickAndRender = pick_readPixels;
 
 init();
 requestAnimationFrame(render);
@@ -173,6 +173,7 @@ function init() {
 
   canvas = document.createElement( 'canvas' );
   gl = canvas.getContext('webgl2', { antialias: true });
+  WEBGL_get_buffer_sub_data_async = gl.getExtension("WEBGL_get_buffer_sub_data_async");
 
   renderer = new THREE.WebGLRenderer({ canvas: canvas, context: gl });
   renderer.setClearColor(0xffffff);
@@ -205,7 +206,7 @@ function init() {
   stats2.domElement.style.top = "50px";
 
   var gui = new dat.GUI({ resizable: false, width: 350 });
-  var pickObject = { pickImplementation: 'pick_getBufferSubDataAsync' };
+  var pickObject = { pickImplementation: 'pick_readPixels' };
   gui.add(pickObject, 'pickImplementation', {
     'readPixels': 'pick_readPixels',
     'getBufferSubData': 'pick_getBufferSubData',
@@ -279,7 +280,7 @@ function pick_getBufferSubDataAsync() {
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
   stats2.begin();
   gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
-  var promise = gl.getBufferSubDataAsync(gl.PIXEL_PACK_BUFFER, 0, readbackBuffer);
+  var promise = WEBGL_get_buffer_sub_data_async.getBufferSubDataAsync(gl.PIXEL_PACK_BUFFER, 0, readbackBuffer);
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
   stats1.end();
 
