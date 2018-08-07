@@ -33,8 +33,8 @@
     opacity: 0.8;
     color: white;
     height: 48px;
-    left: 80px;
-    width: 120px;
+    left: 100px;
+    width: 150px;
   }
 
   #statsinfo2 {
@@ -44,8 +44,8 @@
     opacity: 0.8;
     color: white;
     height: 48px;
-    left: 80px;
-    width: 120px;
+    left: 100px;
+    width: 150px;
     top: 50px;
   }
 </style>
@@ -66,7 +66,7 @@
 
 <script src="js/three.js"></script>
 <script src="js/controls/TrackballControls.js"></script>
-<script src="js/libs/stats.min.js"></script>
+<script src="js/stats.js"></script>
 <script src="js/libs/dat.gui.min.js"></script>
 <script>
 var container, stats1, stats2;
@@ -210,7 +210,7 @@ function init() {
   gui.add(pickObject, 'pickImplementation', {
     'readPixels': 'pick_readPixels',
     'getBufferSubData': 'pick_getBufferSubData',
-    'getBufferSubDataAsync': 'pick_getBufferSubDataAsync'
+    'nonblocking getBufferSubData': 'pick_nonblocking_getBufferSubData'
   }).onChange(function(value) {
     pickAndRender = window[value];
   });
@@ -223,56 +223,69 @@ function init() {
 function onMouseMove(e) {
   mouse.x = e.clientX;
   mouse.y = e.clientY;
-
-  requestPickAndRender();
 }
 
 function requestPickAndRender() {
+  requestAnimationFrame(requestPickAndRender);
   if (frameRequested) {
     return;
   }
   frameRequested = true;
   pickAndRender();
 }
+requestAnimationFrame(requestPickAndRender);
 
 function pick_readPixels() {
-  requestAnimationFrame(function() {
-    stats1.begin()
-    // render the picking scene off-screen
-    renderer.render(pickingScene, camera, pickingTexture);
-    // read the pixel under the mouse
-    stats2.begin();
-    gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, readbackBuffer);
-    stats1.end();
+  stats1.begin()
+  // render the picking scene off-screen
+  renderer.render(pickingScene, camera, pickingTexture);
+  // read the pixel under the mouse
+  stats2.begin();
+  gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, readbackBuffer);
+  stats1.end();
 
-    var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
-    render(id);
-    gl.finish();
-    stats2.end();
-  });
+  var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
+  render(id);
+  gl.finish();
+  stats2.end();
 }
 
 function pick_getBufferSubData() {
-  requestAnimationFrame(function() {
-    stats1.begin()
-    // render the picking scene off-screen
-    renderer.render(pickingScene, camera, pickingTexture);
-    // read the pixel under the mouse
-    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
-    stats2.begin();
-    gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
-    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, readbackBuffer);
-    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
-    stats1.end();
+  stats1.begin()
+  // render the picking scene off-screen
+  renderer.render(pickingScene, camera, pickingTexture);
+  // read the pixel under the mouse
+  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+  stats2.begin();
+  gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, readbackBuffer);
+  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+  stats1.end();
 
-    var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
-    render(id);
-    gl.finish();
-    stats2.end();
+  var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
+  render(id);
+  gl.finish();
+  stats2.end();
+}
+
+  function fence() {
+  return new Promise(function(resolve) {
+    var sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+    function check() {
+      var status = gl.clientWaitSync(sync, 0, 0);
+      if (status == gl.ALREADY_SIGNALED || status == gl.CONDITION_SATISFIED) {
+        gl.deleteSync(sync);
+        resolve();
+      } else {
+        setTimeout(check, 0);
+      }
+    }
+    setTimeout(check, 0);
   });
 }
 
-function pick_getBufferSubDataAsync() {
+function pick_nonblocking_getBufferSubData() {
   stats1.begin();
   // render the picking scene off-screen
   renderer.render(pickingScene, camera, pickingTexture);
@@ -280,16 +293,17 @@ function pick_getBufferSubDataAsync() {
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
   stats2.begin();
   gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
-  var promise = WEBGL_get_buffer_sub_data_async.getBufferSubDataAsync(gl.PIXEL_PACK_BUFFER, 0, readbackBuffer);
-  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
-  stats1.end();
 
-  return promise.then(function(readbackBuffer) {
+  fence().then(function() {
+    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, readbackBuffer);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+
     var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
     render(id);
     gl.finish();
     stats2.end();
   });
+  stats1.end();
 }
 
 function highlight(id) {
