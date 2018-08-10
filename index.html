@@ -268,13 +268,13 @@ function pick_getBufferSubData() {
   stats2.end();
 }
 
-  function fence() {
+function fence() {
   return new Promise(function(resolve) {
     var sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-    gl.flush();
+    gl.flush(); // Ensure the fence is submitted.
     function check() {
-      var status = gl.clientWaitSync(sync, 0, 0);
-      if (status == gl.ALREADY_SIGNALED || status == gl.CONDITION_SATISFIED) {
+      var status = gl.getSyncParameter(sync, gl.SYNC_STATUS);
+      if (status == gl.SIGNALED) {
         gl.deleteSync(sync);
         resolve();
       } else {
