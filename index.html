@@ -57,7 +57,7 @@
   <a href="http://threejs.org" target="_blank">three.js</a>)
 </div>
 <div id="statsinfo1">
-  time in <em>synchronous</em> picking code
+  blocking time in read operation (readPixels or getBufferSubData)
 </div>
 <div id="statsinfo2">
   time from pick triggered to render complete
@@ -209,7 +209,7 @@ function init() {
   var pickObject = { pickImplementation: 'pick_readPixels' };
   gui.add(pickObject, 'pickImplementation', {
     'readPixels': 'pick_readPixels',
-    'getBufferSubData': 'pick_getBufferSubData',
+    'blocking getBufferSubData': 'pick_getBufferSubData',
     'nonblocking getBufferSubData': 'pick_nonblocking_getBufferSubData'
   }).onChange(function(value) {
     pickAndRender = window[value];
@@ -236,11 +236,11 @@ function requestPickAndRender() {
 requestAnimationFrame(requestPickAndRender);
 
 function pick_readPixels() {
-  stats1.begin()
   // render the picking scene off-screen
   renderer.render(pickingScene, camera, pickingTexture);
   // read the pixel under the mouse
   stats2.begin();
+  stats1.begin()
   gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, readbackBuffer);
   stats1.end();
 
@@ -251,16 +251,16 @@ function pick_readPixels() {
 }
 
 function pick_getBufferSubData() {
-  stats1.begin()
   // render the picking scene off-screen
   renderer.render(pickingScene, camera, pickingTexture);
   // read the pixel under the mouse
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
   stats2.begin();
   gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+  stats1.begin()
   gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, readbackBuffer);
-  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
   stats1.end();
+  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
 
   var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
   render(id);
@@ -286,7 +286,6 @@ function fence() {
 }
 
 function pick_nonblocking_getBufferSubData() {
-  stats1.begin();
   // render the picking scene off-screen
   renderer.render(pickingScene, camera, pickingTexture);
   // read the pixel under the mouse
@@ -295,7 +294,9 @@ function pick_nonblocking_getBufferSubData() {
   gl.readPixels(mouse.x, pickingTexture.height - mouse.y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
 
   fence().then(function() {
+    stats1.begin();
     gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, readbackBuffer);
+    stats1.end();
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
 
     var id = (readbackBuffer[0] << 16) | (readbackBuffer[1] << 8) | (readbackBuffer[2]);
@@ -303,7 +304,6 @@ function pick_nonblocking_getBufferSubData() {
     gl.finish();
     stats2.end();
   });
-  stats1.end();
 }
 
 function highlight(id) {
