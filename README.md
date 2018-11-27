@@ -1,4 +1,4 @@
-# [getBufferSubDataAsync Picking Demo](https://kainino0x.github.io/getBufferSubDataAsync-Demo/)
+# [Non-blocking getBufferSubData Picking Demo](https://kainino0x.github.io/getBufferSubDataAsync-Demo/)
 
 This demonstrates the use of the new *nonblocking* use pattern for
 `getBufferSubData` in WebGL 2.0 implementations and provides a performance
